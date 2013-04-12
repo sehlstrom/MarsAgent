@@ -4,6 +4,7 @@
 package marsagent.math.linear;
 
 import org.jblas.DoubleMatrix;
+import org.jblas.Solve;
 
 /**
  * Solve the lowest eigenvalue <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mi>&lambda;<sub><mn>1</mn></sub><sup><mn>*</mn></sup></mi></math>
@@ -105,7 +106,7 @@ public class InverseIteration {
 	 * @return result
 	 */
 	public ResultStructure compute(DoubleMatrix a, DoubleMatrix b) {
-		return compute(a, b, 0, DoubleMatrix.ones(a.rows));
+		return compute(a, b, 0, DoubleMatrix.ones(a.rows,1));
 	}
 
 	/**
@@ -118,7 +119,7 @@ public class InverseIteration {
 	 * @return result
 	 */
 	public ResultStructure compute(DoubleMatrix a, DoubleMatrix b, double mu) {
-		return compute(a, b, mu, DoubleMatrix.ones(a.rows));
+		return compute(a, b, mu, DoubleMatrix.ones(a.rows,1));
 	}
 
 	/**
@@ -152,7 +153,7 @@ public class InverseIteration {
 		DoubleMatrix phi_s;
 		DoubleMatrix phi_hat;
 
-		DoubleMatrix K_hat = a.sub(b.mul(mu));
+		DoubleMatrix a_hat = a.sub(b.mul(mu));
 
 		boolean run = true;
 		int s = 0;
@@ -162,7 +163,7 @@ public class InverseIteration {
 		while (run) {
 			phi_s = phi;
 
-			phi_hat = K_hat.div(b.mmul(phi_s));
+			phi_hat = Solve.solvePositive(a_hat, b.mmul(phi_s));
 
 			lambda_s1 = phi_hat.transpose().mmul(b).mmul(phi_s).div(phi_hat.transpose().mmul(b).mmul(phi_hat)).get(0);
 
