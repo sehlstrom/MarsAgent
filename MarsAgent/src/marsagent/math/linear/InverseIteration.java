@@ -3,7 +3,11 @@
  */
 package marsagent.math.linear;
 
+import marsagent.math.exception.DimensionMissmatchException;
+import marsagent.math.exception.NonSquareMatrixException;
+
 import org.jblas.DoubleMatrix;
+import org.jblas.Eigen;
 import org.jblas.Solve;
 
 /**
@@ -27,13 +31,13 @@ import org.jblas.Solve;
  * <p>The eigenvalue <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mi>&lambda;<sub><mn>1</mn></sub><sup><mn>*</mn></sup></mi></math>
  * is approximated such that
  * <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mi>&lambda;<sub><mn>1</mn></sub><sup><mn>*</mn></sup></mi><mo>&gt;</mo><mi>&lambda;<sub><mn>1</mn></sub></mn></math>
- * where <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mi>&lambda;<sub><mn>1</mn></sub></mn></math> is the true lowest eigenvalue</p>
+ * where <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mi>&lambda;<sub><mn>1</mn></sub></mn></math> is the true lowest eigenvalue.</p>
  * 
  * <p>It is possible to solve for other approximations of the eigenvalue other
  * than the lowest eigenvalue by shifting the eigenvalue spectrum using
  * <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mi>&mu;</mi><mo>&gt;</mo><mi>&lambda;<sub><mi>n</mi></sub></mi><mo>&gt;</mo><mi>&lambda;<sub><mn>1</mn></sub></mi></math>
  * where <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mi>&lambda;<sub><mi>n</mi></sub></mn></math> is the sought eigenvalue.
- * The following problem is then solved:</p>
+ * The following problem is then solved:
  * 
  * <math xmlns="http://www.w3.org/1998/Math/MathML" display="block">
  *   <mo>[</mo>
@@ -47,8 +51,8 @@ import org.jblas.Solve;
  * </math>
  * 
  * @author 	AlexanderSehlstrom
- * @since	$
- * @version	$
+ * @since	1.0
+ * @version	1.0.2
  *
  */
 public class InverseIteration {
@@ -56,15 +60,15 @@ public class InverseIteration {
 	/**
 	 * Structure holding the computed results.
 	 * @author 	AlexanderSehlstrom
-	 * @since	$
-	 * @version	$
+	 * @since	1.0
+	 * @version	1.0
 	 *
 	 */
 	public class ResultStructure {
-		/** Sought eigenvalue */
+		/** Eigenvalue */
 		public double lambda;
 
-		/** Sought eigenvector */
+		/** Eigenvector */
 		public DoubleMatrix phi;
 	}
 
@@ -74,14 +78,35 @@ public class InverseIteration {
 	/** Default change tolerance */
 	private static final double TOL = 1e-3;
 
+	public static void main(String[] args) {
+		int m = 100;
+		InverseIteration ii = new InverseIteration();
+
+		DoubleMatrix a = DoubleMatrix.eye(m).mul(Math.random());
+		DoubleMatrix b = DoubleMatrix.eye(m).mul(Math.random());
+
+		ResultStructure rs1 = ii.compute(a, b);
+
+		System.out.println("Inverse iteration results");
+		System.out.println("lambda = " + rs1.lambda);
+		System.out.println("phi(1) = " + rs1.phi.get(0));
+
+		DoubleMatrix rs2lambda = Eigen.symmetricGeneralizedEigenvalues(a, b);
+		DoubleMatrix[] rs2phi = Eigen.symmetricGeneralizedEigenvectors(a, b);
+
+		System.out.println("\njBlas solver results");
+		System.out.println("lambda = " + rs2lambda.min());
+		System.out.println("phi(1) = " + rs2phi[rs2lambda.argmin()].get(0));
+	}
+
 	/** Maximum number of iterations */
-	private double maxiter;
+	private int maxiter;
 
 	/** Change tolerance */
 	private double tol;
 
 	/**
-	 * Simple constructor.
+	 * Simple constructor with default convergency tolerance.
 	 */
 	public InverseIteration() {
 		tol = TOL;
@@ -101,9 +126,11 @@ public class InverseIteration {
 	/**
 	 * Solves the lowest eigenvalue and it's corresponding eigenvector for the
 	 * generalized eigenvalue problem.
-	 * @param a		matrix
-	 * @param b		matrix
+	 * @param a		square matrix <code>(m x m)</code>
+	 * @param b		sqare matrix <code>(m x m)</code>
 	 * @return result
+	 * @throws NonSquareMatrixException if <code>a</code> or <code>b</code> is not square
+	 * @throws DimensionMissmatchException if any input has missmatching dimensions
 	 */
 	public ResultStructure compute(DoubleMatrix a, DoubleMatrix b) {
 		return compute(a, b, 0, DoubleMatrix.ones(a.rows,1));
@@ -113,72 +140,130 @@ public class InverseIteration {
 	 * Solves the first eigenvalue that is smaller than <code>mu</code> and
 	 * it's corresponding eigenvector for the generalized eigenvalue problem
 	 * with spectrum shift.
-	 * @param a		matrix
-	 * @param b		matrix
+	 * @param a		square matrix <code>(m x m)</code>
+	 * @param b		sqare matrix <code>(m x m)</code>
 	 * @param mu	spectrum shift
 	 * @return result
+	 * @throws NonSquareMatrixException if <code>a</code> or <code>b</code> is not square
+	 * @throws DimensionMissmatchException if any input has missmatching dimensions
 	 */
 	public ResultStructure compute(DoubleMatrix a, DoubleMatrix b, double mu) {
 		return compute(a, b, mu, DoubleMatrix.ones(a.rows,1));
 	}
 
 	/**
+	 * Solves the first eigenvalue that is smaller than <code>mu</code> and
+	 * it's corresponding eigenvector for the generalized eigenvalue problem
+	 * with spectrum shift.
+	 * @param a		square matrix <code>(m x m)</code>
+	 * @param b		sqare matrix <code>(m x m)</code>
+	 * @param mu	spectrum shift
+	 * @param phi0	initial guess mode <code>(m x 1)</code>
+	 * @return result
+	 * @throws NonSquareMatrixException if <code>a</code> or <code>b</code> is not square
+	 * @throws DimensionMissmatchException if any input has missmatching dimensions
+	 */
+	public ResultStructure compute(DoubleMatrix a, DoubleMatrix b, double mu, DoubleMatrix phi0) {
+		if (!a.isSquare()) {
+			throw new NonSquareMatrixException("The a-matrix has to be square");
+		}
+		if (!b.isSquare()) {
+			throw new NonSquareMatrixException("The b-matrix has to be square");
+		}
+		if (!a.sameSize(b)) {
+			throw new DimensionMissmatchException("The a-matrix and the b-matrix has to have the same size");
+		}
+		if (!phi0.isColumnVector()) {
+			throw new DimensionMissmatchException("The phi0-vector has to be a column vector");
+		}
+		if (phi0.rows != a.rows) {
+			throw new DimensionMissmatchException("The phi0-vector has to have the same number of rows as the a-matrix");
+		}
+
+		ResultStructure result = new ResultStructure();
+		DoubleMatrix phi = phi0.dup();
+		DoubleMatrix phi_s;
+		DoubleMatrix phi_hat;
+		DoubleMatrix a_hat = a.sub(b.mul(mu));
+
+		boolean run = true;
+		int s = 0;
+		double lambda = 0;
+		double lambda_s = 0;
+
+		// Iterate
+		while (run) {
+			// Guess mode of step s
+			phi_s = phi;
+
+			// Shifted guess mode of step s
+			phi_hat = Solve.solveSymmetric(a_hat, b.mmul(phi_s));
+
+			// Eigenvalue of step s
+			lambda_s = phi_hat.transpose().mmul(b).mmul(phi_s).div(phi_hat.transpose().mmul(b).mmul(phi_hat)).get(0);
+
+			// Eigenvector of step s
+			phi = phi_hat.div(Math.pow(phi_hat.transpose().mmul(b).mmul(phi_hat).get(0), 1/2));
+
+			// Check stop criterion
+			run = ((Math.abs(lambda_s-lambda) < tol) || (s > maxiter) ? false : true );
+
+			// Save iteration lambda value
+			lambda = lambda_s;
+
+			// Count
+			s ++;
+		}
+
+		result.lambda = lambda_s + mu;
+		result.phi = phi;
+
+		return result;
+	}
+
+	/**
 	 * Solves the lowest eigenvalue and it's corresponding eigenvector for the
 	 * generalized eigenvalue problem.
-	 * @param a		matrix
-	 * @param b		matrix
-	 * @param phi0	initial guess mode.
+	 * @param a		square matrix <code>(m x m)</code>
+	 * @param b		sqare matrix <code>(m x m)</code>
+	 * @param phi0	initial guess mode <code>(m x 1)</code>
 	 * @return result
+	 * @throws NonSquareMatrixException if <code>a</code> or <code>b</code> is not square
+	 * @throws DimensionMissmatchException if any input has missmatching dimensions
 	 */
 	public ResultStructure compute(DoubleMatrix a, DoubleMatrix b, DoubleMatrix phi0) {
 		return compute(a, b, 0, phi0);
 	}
 
 	/**
-	 * Solves the first eigenvalue that is smaller than <code>mu</code> and
-	 * it's corresponding eigenvector for the generalized eigenvalue problem
-	 * with spectrum shift.
-	 * @param a		matrix
-	 * @param b		matrix
-	 * @param mu	spectrum shift
-	 * @param phi0	initial guess mode.
-	 * @return result
+	 * Get the maximum allowed number of iterations
+	 * @return maximum number of iterations
 	 */
-	private ResultStructure compute(DoubleMatrix a, DoubleMatrix b, double mu, DoubleMatrix phi0) {
+	public int getMaxiter() {
+		return maxiter;
+	}
 
-		// TODO: Add check of matrix and vector sizes.
+	/**
+	 * Get the tolerance
+	 * @return change tolerance
+	 */
+	public double getTol() {
+		return tol;
+	}
 
-		ResultStructure result = new ResultStructure();
-		DoubleMatrix phi = phi0.dup();
-		DoubleMatrix phi_s;
-		DoubleMatrix phi_hat;
+	/**
+	 * Set the maximum allowed number of iterations
+	 * @param maxiter maximum number of iterations
+	 */
+	public void setMaxiter(int maxiter) {
+		this.maxiter = maxiter;
+	}
 
-		DoubleMatrix a_hat = a.sub(b.mul(mu));
-
-		boolean run = true;
-		int s = 0;
-		double lambda = 0;
-		double lambda_s1 = 0;
-
-		while (run) {
-			phi_s = phi;
-
-			phi_hat = Solve.solvePositive(a_hat, b.mmul(phi_s));
-
-			lambda_s1 = phi_hat.transpose().mmul(b).mmul(phi_s).div(phi_hat.transpose().mmul(b).mmul(phi_hat)).get(0);
-
-			phi = phi_hat.div(Math.pow(phi_hat.transpose().mmul(b).mmul(phi_hat).get(0), 1/2));
-
-			// Check stop criterion
-			run = ((Math.abs(lambda_s1-lambda) < tol) || (s > maxiter) ? false : true );
-
-			// Count
-			s ++;
-		}
-
-		result.lambda = lambda_s1 + mu;
-		result.phi = phi;
-
-		return result;
+	/**
+	 * Set the tolerance
+	 * @param tol change tolerance
+	 */
+	public void setTol(double tol) {
+		this.tol = tol;
 	}
 }

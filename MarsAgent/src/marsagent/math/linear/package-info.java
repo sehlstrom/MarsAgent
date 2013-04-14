@@ -1,4 +1,4 @@
 /**
- * Linear algebra.
+ * MarsAgent linear algebra.
  */
 package marsagent.math.linear;
